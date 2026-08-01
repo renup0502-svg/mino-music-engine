@@ -1,0 +1,10 @@
+{
+  "album_name": "Rain Valley - Autumn Stories",
+  "crossfade_seconds": 6.0,
+  "fade_curve": "qsin",
+  "opening_fade_seconds": 2.0,
+  "ending_fade_seconds": 4.0,
+  "output_bitrate": "192k",
+  "sample_rate": 44100,
+  "channels": 2
+}
