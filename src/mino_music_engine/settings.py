@@ -5,20 +5,22 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class EngineSettings:
-    """Configuration values used by the Mino Music Engine."""
+    """Album and export settings for the Mino Music Engine."""
 
     album_name: str
+    artist: str
+    album: str
+    genre: str
+    year: str
+    comment: str
+    target_duration_seconds: float
     crossfade_seconds: float
-    fade_curve: str
-    opening_fade_seconds: float
-    ending_fade_seconds: float
-    output_bitrate: str
-    sample_rate: int
-    channels: int
+    cover_path: str
+    output_filename: str
 
 
 def load_settings(settings_path: Path) -> EngineSettings:
-    """Load engine settings from a JSON file."""
+    """Load and validate settings from JSON."""
 
     if not settings_path.exists():
         raise FileNotFoundError(
@@ -34,17 +36,55 @@ def load_settings(settings_path: Path) -> EngineSettings:
             f"Invalid JSON in settings file: {error}"
         ) from error
 
+    required_fields = [
+        "album_name",
+        "artist",
+        "album",
+        "genre",
+        "year",
+        "comment",
+        "target_duration_seconds",
+        "crossfade_seconds",
+        "cover_path",
+        "output_filename",
+    ]
+
+    missing_fields = [
+        field
+        for field in required_fields
+        if field not in data
+    ]
+
+    if missing_fields:
+        raise ValueError(
+            "Missing settings: "
+            + ", ".join(missing_fields)
+        )
+
+    target_duration = float(
+        data["target_duration_seconds"]
+    )
+    crossfade = float(data["crossfade_seconds"])
+
+    if target_duration <= 0:
+        raise ValueError(
+            "target_duration_seconds must be greater than zero."
+        )
+
+    if crossfade < 0:
+        raise ValueError(
+            "crossfade_seconds cannot be negative."
+        )
+
     return EngineSettings(
         album_name=str(data["album_name"]),
-        crossfade_seconds=float(data["crossfade_seconds"]),
-        fade_curve=str(data["fade_curve"]),
-        opening_fade_seconds=float(
-            data["opening_fade_seconds"]
-        ),
-        ending_fade_seconds=float(
-            data["ending_fade_seconds"]
-        ),
-        output_bitrate=str(data["output_bitrate"]),
-        sample_rate=int(data["sample_rate"]),
-        channels=int(data["channels"]),
+        artist=str(data["artist"]),
+        album=str(data["album"]),
+        genre=str(data["genre"]),
+        year=str(data["year"]),
+        comment=str(data["comment"]),
+        target_duration_seconds=target_duration,
+        crossfade_seconds=crossfade,
+        cover_path=str(data["cover_path"]),
+        output_filename=str(data["output_filename"]),
     )

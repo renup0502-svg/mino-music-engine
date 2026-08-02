@@ -3,3 +3,9 @@ exports/
 .venv/
 __pycache__/
 *.pyc
+
+# Generated outputs
+exports/*.mp3
+reports/*.csv
+reports/*.json
+reports/*.txt
