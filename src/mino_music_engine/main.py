@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from mino_music_engine.analyzer import (
@@ -5,17 +6,27 @@ from mino_music_engine.analyzer import (
     analyze_track,
     format_duration,
 )
+from mino_music_engine.duration_engine import build_extended_track_plan
 from mino_music_engine.mixer import create_crossfade_mix
-from mino_music_engine.playlist import build_playlist
 from mino_music_engine.scanner import find_audio_tracks
 from mino_music_engine.validator import validate_album
 
 
-def main() -> None:
-    """Run the Mino Music Engine."""
+TARGET_DURATION_SECONDS = 7200.0
+CROSSFADE_SECONDS = 6.0
+
+
+def get_project_paths() -> tuple[Path, Path]:
+    """Return the project root and music folder."""
 
     project_root = Path(__file__).resolve().parents[2]
     music_folder = project_root / "assets" / "music"
+
+    return project_root, music_folder
+
+
+def analyze_music_folder(music_folder: Path) -> list[TrackInfo]:
+    """Scan and analyze every supported audio track."""
 
     print()
     print("Mino Music Engine")
@@ -27,12 +38,11 @@ def main() -> None:
         tracks = find_audio_tracks(music_folder)
     except (FileNotFoundError, NotADirectoryError) as error:
         print(f"Error: {error}")
-        return
+        return []
 
     if not tracks:
         print("No audio tracks were found.")
-        print("Add files to assets/music.")
-        return
+        return []
 
     print(f"Found {len(tracks)} audio track(s).")
     print("Analyzing tracks...")
@@ -55,10 +65,11 @@ def main() -> None:
             f" | {info.bitrate_kbps} kbps"
         )
 
-    if not track_infos:
-        print()
-        print("No valid tracks could be analyzed.")
-        return
+    return track_infos
+
+
+def run_validation(track_infos: list[TrackInfo]) -> bool:
+    """Validate the album and return True when it passes."""
 
     print()
     print("ALBUM VALIDATION")
@@ -66,83 +77,119 @@ def main() -> None:
 
     validation = validate_album(track_infos)
 
-    if validation.warnings:
-        print("Warnings:")
-
-        for warning in validation.warnings:
-            print(f"  WARNING: {warning}")
-
-        print()
+    for warning in validation.warnings:
+        print(f"WARNING: {warning}")
 
     if validation.errors:
-        print("Errors:")
-
         for error in validation.errors:
-            print(f"  ERROR: {error}")
+            print(f"ERROR: {error}")
 
         print()
         print("Album validation failed.")
-        print("Fix the errors before creating a mix.")
-        return
+        return False
+
+    raw_duration = sum(track.duration_seconds for track in track_infos)
 
     print("Album validation passed.")
     print(f"Validated tracks: {len(track_infos)}")
+    print(f"Raw duration: {format_duration(raw_duration)}")
 
-    playlist = build_playlist(track_infos)
+    return True
 
-    print()
-    print("PLAYLIST PLAN")
-    print("=" * 72)
 
-    for item in playlist:
-        print(
-            f"{item.track_number:02}. "
-            f"Start: {format_duration(item.start_seconds)}"
-            f" | Duration: {format_duration(item.duration_seconds)}"
-            f" | {item.path.name}"
-        )
+def validate_command() -> None:
+    """Validate tracks without creating an export."""
 
-    total_duration = sum(
-        item.duration_seconds
-        for item in playlist
+    _, music_folder = get_project_paths()
+    track_infos = analyze_music_folder(music_folder)
+
+    if track_infos:
+        run_validation(track_infos)
+
+
+def build_command() -> None:
+    """Validate and build the complete two-hour album."""
+
+    project_root, music_folder = get_project_paths()
+    track_infos = analyze_music_folder(music_folder)
+
+    if not track_infos:
+        return
+
+    if not run_validation(track_infos):
+        return
+
+    extended_tracks = build_extended_track_plan(
+        tracks=track_infos,
+        target_duration_seconds=TARGET_DURATION_SECONDS,
+        crossfade_seconds=CROSSFADE_SECONDS,
     )
 
     print()
+    print("TWO-HOUR PLAYLIST PLAN")
     print("=" * 72)
-    print(f"Total tracks: {len(playlist)}")
-    print(f"Total duration: {format_duration(total_duration)}")
-    print("Playlist created successfully.")
+    print(f"Planned track uses: {len(extended_tracks)}")
+    print("Target duration: 02:00:00")
 
-    preview_tracks = track_infos[:3]
+    output_path = (
+        project_root
+        / "exports"
+        / "Rain Valley - Autumn Stories - 2 Hours.mp3"
+    )
 
-    print()
-    print("CROSSFADE COMPARISON")
-    print("=" * 72)
-    print("Creating 4-second, 6-second, and 8-second previews.")
-
-    preview_settings = [
-        (4.0, "crossfade-4s.mp3"),
-        (6.0, "crossfade-6s.mp3"),
-        (8.0, "crossfade-8s.mp3"),
-    ]
-
-    for crossfade_seconds, filename in preview_settings:
-        preview_output = project_root / "exports" / filename
-
-        try:
-            preview_duration = create_crossfade_mix(
-                tracks=preview_tracks,
-                output_path=preview_output,
-                crossfade_seconds=crossfade_seconds,
-            )
-        except (ValueError, RuntimeError) as error:
-            print(f"Crossfade error: {error}")
-            return
+    try:
+        final_duration = create_crossfade_mix(
+            tracks=extended_tracks,
+            output_path=output_path,
+            crossfade_seconds=CROSSFADE_SECONDS,
+            target_duration_seconds=TARGET_DURATION_SECONDS,
+        )
+    except (ValueError, RuntimeError) as error:
+        print(f"Export error: {error}")
+        return
 
         print()
-        print(f"Created: {filename}")
-        print(f"Duration: {format_duration(preview_duration)}")
-        print(f"File: {preview_output}")
+    print("=" * 72)
+    print("Two-hour export completed.")
+    print(f"Final duration: {format_duration(final_duration)}")
+    print(f"Output: {output_path}")
+
+
+def print_help() -> None:
+    """Show available commands."""
 
     print()
-    print("All comparison previews created successfully.")
+    print("Mino Music Engine")
+    print("=" * 40)
+    print("Available commands:")
+    print()
+    print("  uv run mino-music-engine validate")
+    print("      Analyze and validate tracks only.")
+    print()
+    print("  uv run mino-music-engine build")
+    print("      Create the complete two-hour album.")
+    print()
+
+
+def main() -> None:
+    """Run the requested command."""
+
+    command = (
+        sys.argv[1].lower()
+        if len(sys.argv) > 1
+        else "help"
+    )
+
+    if command == "validate":
+        validate_command()
+    elif command == "build":
+        build_command()
+    elif command in {"help", "--help", "-h"}:
+        print_help()
+    else:
+        print(f"Unknown command: {command}")
+        print_help()
+
+
+if __name__ == "__main__":
+    main()
