@@ -134,7 +134,7 @@ def build_command() -> None:
     output_path = (
         project_root
         / "exports"
-        / "Rain Valley - Autumn Stories - 2 Hours.mp3"
+        / "Rain Valley - Autumn Stories - 2 Hours - Normalized.mp3"
     )
 
     try:

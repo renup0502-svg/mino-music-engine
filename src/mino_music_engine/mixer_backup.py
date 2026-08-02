@@ -4,6 +4,12 @@ from pathlib import Path
 from mino_music_engine.analyzer import TrackInfo
 
 
+import subprocess
+from pathlib import Path
+
+from mino_music_engine.analyzer import TrackInfo
+
+
 def create_crossfade_mix(
     tracks: list[TrackInfo],
     output_path: Path,
@@ -18,7 +24,9 @@ def create_crossfade_mix(
     """
 
     if len(tracks) < 2:
-        raise ValueError("At least two tracks are required.")
+        raise ValueError(
+            "At least two tracks are required."
+        )
 
     for track in tracks:
         if track.duration_seconds <= crossfade_seconds:
@@ -46,11 +54,6 @@ def create_crossfade_mix(
             "sample_fmts=fltp:"
             "sample_rates=44100:"
             "channel_layouts=stereo,"
-            "loudnorm="
-            "I=-14:"
-            "LRA=7:"
-            "TP=-1.5,"
-            "aresample=44100,"
             "asetpts=N/SR/TB"
             f"[a{index}]"
         )
@@ -115,7 +118,9 @@ def create_crossfade_mix(
 
     print()
     print("Creating crossfade mix...")
-    print(f"Tracks in plan: {len(tracks)}")
+    print(
+        f"Tracks in plan: {len(tracks)}"
+    )
     print(
         f"Crossfade duration: "
         f"{crossfade_seconds} seconds"
